@@ -1,4 +1,4 @@
-name: buildx
+name: build
 
 on:
   push:
@@ -36,7 +36,6 @@ jobs:
         id: config
         env:
           GITHUB_REPO: ${{ github.repository }}
-          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
             # Tagged release
@@ -63,11 +62,11 @@ jobs:
 
           # Temporary workaround (don't build linux/arm/v7) https://github.com/moby/moby/issues/41017
           echo ::set-output name=docker_platforms::linux/amd64,linux/arm/v6,linux/arm64
-          echo ::set-output name=docker_image::${DOCKERHUB_USER}/${GITHUB_REPO##*/docker-}
+          echo ::set-output name=docker_image::${GITHUB_REPO##*/docker-}
 
-          echo ::set-output name=pihole_core_version=$(grep "PIHOLE_CORE_VERSION=" Dockerfile | head -1 | grep -o "v.*")
-          echo ::set-output name=pihole_ftl_version=$( grep "PIHOLE_FTL_VERSION="  Dockerfile | head -1 | grep -o "v.*")
-          echo ::set-output name=pihole_web_version=$( grep "PIHOLE_WEB_VERSION="  Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_core_version::$(grep "PIHOLE_CORE_VERSION=" Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_ftl_version::$( grep "PIHOLE_FTL_VERSION="  Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_web_version::$( grep "PIHOLE_WEB_VERSION="  Dockerfile | head -1 | grep -o "v.*")
 
       - name: show configuration
         run: |
@@ -87,7 +86,7 @@ jobs:
             --cache-to    "type=local,dest=/tmp/buildx-cache" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
             --platform    "${{ steps.config.outputs.docker_platforms }}" \
-            --tag         "${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
+            --tag         "${{ secrets.DOCKERHUB_USER }}/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
             .
     outputs:
       date:                ${{ steps.config.outputs.date }}
@@ -119,10 +118,10 @@ jobs:
           docker buildx build \
             --output      "type=image,push=true" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
-            --platform    "${{ needs.buildx.outputs.docker_platforms }}" \
-            --tag         "${{ needs.buildx.outputs.docker_image }}:${{ needs.buildx.outputs.version }}" \
-            --label       "org.opencontainers.image.created=${{  needs.buildx.outputs.date }}" \
-            --label       "org.opencontainers.image.revision=${{ needs.buildx.outputs.gitsha }}"
+            --platform    "${{ needs.build.outputs.docker_platforms }}" \
+            --tag         "${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
+            --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}"
             .
 
     # TODO: This doesn't support Docker Hub personal access tokens or 2FA
@@ -148,9 +147,9 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           body: |
-            Core          **[${{ needs.buildx.outputs.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ needs.buildx.outputs.pihole_core_version }})**
-            FTLDNS        **[${{ needs.buildx.outputs.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{      needs.buildx.outputs.pihole_ftl_version }})**
-            Web interface **[${{ needs.buildx.outputs.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ needs.buildx.outputs.pihole_web_version }})**
+            Core          **[${{ needs.build.outputs.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ needs.build.outputs.pihole_core_version }})**
+            FTLDNS        **[${{ needs.build.outputs.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{      needs.build.outputs.pihole_ftl_version }})**
+            Web interface **[${{ needs.build.outputs.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ needs.build.outputs.pihole_web_version }})**
           draft: true
           prerelease: false
 
