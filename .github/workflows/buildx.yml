@@ -120,7 +120,7 @@ jobs:
 
       - name: create release
         uses: actions/create-release@v1
-        if: success() and github.event_name == 'tag'
+        if: success() && github.event_name == 'tag'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
