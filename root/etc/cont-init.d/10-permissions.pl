@@ -1,5 +1,5 @@
 #!/usr/bin/with-contenv bash
-set -e
+set -eux
 
 function reown {
   case $1 in

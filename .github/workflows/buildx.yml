@@ -129,9 +129,9 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           body: |
-            Core **[${{ steps.config.output.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ steps.config.output.pihole_core_version }})**
-            FTLDNS **[${{ steps.config.output.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{ steps.config.output.pihole_ftl_version }})**
-            Web interface **[${{ steps.config.output.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ steps.config.output.pihole_web_version }})**
+            Core **[${{ steps.release.output.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ steps.config.output.pihole_core_version }})**
+            FTLDNS **[${{ steps.release.output.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{ steps.config.output.pihole_ftl_version }})**
+            Web interface **[${{ steps.release.output.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ steps.config.output.pihole_web_version }})**
           draft: true
           prerelease: false
 

@@ -35,7 +35,6 @@ curl -o /install.sh \
   echo "IPV6_ADDRESS=::"
   echo "PIHOLE_DNS_1=1.1.1.1"
   echo "PIHOLE_DNS_2=1.0.0.1"
-  echo "QUERY_LOGGING=true"
   echo "INSTALL_WEB_SERVER=true"
   echo "INSTALL_WEB_INTERFACE=true"
   echo "LIGHTTPD_ENABLED=true"

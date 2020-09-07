@@ -631,7 +631,7 @@ sub set_defaults (\%) {
     $env->{"PIHOLE_DNS_LOG_QUERIES",           } //= "true";
     $env->{"PIHOLE_DNS_UPSTREAM_1"             } //= "1.1.1.1";
     $env->{"PIHOLE_LISTEN"                     } //= "all";
-    $env->{"PIHOLE_TEMPERATURE_UNIT"           } //= "f";
+    $env->{"PIHOLE_TEMPERATURE_UNIT"           } //= "F";
     $env->{"PIHOLE_WEB_ENABLED"                } //= "true";
     $env->{"PIHOLE_WEB_HOSTNAME"               } //= trim(`hostname -f 2>/dev/null || hostname`);
     $env->{"PIHOLE_WEB_INSTALL_SERVER"         } //= "true";
