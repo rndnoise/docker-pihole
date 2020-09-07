@@ -80,13 +80,15 @@ jobs:
           echo pihole_core_version: ${{ steps.config.outputs.pihole_core_version }}
 
       - name: build docker image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           docker buildx build \
             --output      "type=image,push=false" \
             --cache-to    "type=local,dest=/tmp/buildx-cache" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
             --platform    "${{ steps.config.outputs.docker_platforms }}" \
-            --tag         "${{ secrets.DOCKERHUB_USER }}/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
+            --tag         "${DOCKERHUB_USERNAME}/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
             .
     outputs:
       date:                ${{ steps.config.outputs.date }}
@@ -119,7 +121,7 @@ jobs:
             --output      "type=image,push=true" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
             --platform    "${{ needs.build.outputs.docker_platforms }}" \
-            --tag         "${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
             --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
             --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}"
             .
