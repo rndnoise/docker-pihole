@@ -18,7 +18,6 @@ jobs:
         uses: actions/checkout@v2
 
       - name: setup docker buildx
-        if: success()
         id: buildx
         uses: crazy-max/ghaction-docker-buildx@v3
         with:
@@ -26,7 +25,6 @@ jobs:
           buildx-version: latest
 
       - name: setup docker cache
-        if: success()
         id: cache
         uses: actions/cache@v2
         with:
@@ -35,7 +33,6 @@ jobs:
           restore-keys: ${{ runner.os }}-buildx-
 
       - name: configure build
-        if: success()
         id: config
         env:
           GITHUB_REPO: ${{ github.repository }}
@@ -68,31 +65,29 @@ jobs:
           echo ::set-output name=docker_platforms::linux/amd64,linux/arm/v6,linux/arm64
           echo ::set-output name=docker_image::${DOCKERHUB_USER}/${GITHUB_REPO##*/docker-}
 
-          echo ::set-output name=pihole_core_version=$(cat Dockerfile | grep PIHOLE_CORE_VERSION= | head -n1 | grep -o 'v.*')
-          echo ::set-output name=pihole_ftl_version=$(cat Dockerfile  | grep PIHOLE_FTL_VERSION=  | head -n1 | grep -o 'v.*')
-          echo ::set-output name=pihole_web_version=$(cat Dockerfile  | grep PIHOLE_WEB_VERSION=  | head -n1 | grep -o 'v.*')
+          echo ::set-output name=pihole_core_version=$(grep "PIHOLE_CORE_VERSION=" Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_ftl_version=$( grep "PIHOLE_FTL_VERSION="  Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_web_version=$( grep "PIHOLE_WEB_VERSION="  Dockerfile | head -1 | grep -o "v.*")
 
       - name: show configuration
-        if: success()
         run: |
-          echo date: ${{ steps.config.outputs.date }}
-          echo gitsha: ${{ steps.config.outputs.gitsha }}
-          echo version: ${{ steps.config.outputs.version }}
-          echo docker_image: ${{ steps.config.outputs.docker_image }}
-          echo docker_platforms: ${{ steps.config.outputs.docker_platforms }}
-          echo pihole_ftl_version: ${{ steps.config.outputs.pihole_ftl_version }}
-          echo pihole_web_version: ${{ steps.config.outputs.pihole_web_version }}
+          echo date:                ${{ steps.config.outputs.date }}
+          echo gitsha:              ${{ steps.config.outputs.gitsha }}
+          echo version:             ${{ steps.config.outputs.version }}
+          echo docker_image:        ${{ steps.config.outputs.docker_image }}
+          echo docker_platforms:    ${{ steps.config.outputs.docker_platforms }}
+          echo pihole_ftl_version:  ${{ steps.config.outputs.pihole_ftl_version }}
+          echo pihole_web_version:  ${{ steps.config.outputs.pihole_web_version }}
           echo pihole_core_version: ${{ steps.config.outputs.pihole_core_version }}
 
       - name: build docker image
-        if: success()
         run: |
           docker buildx build \
             --output      "type=image,push=false" \
             --cache-to    "type=local,dest=/tmp/buildx-cache" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
-            --platform    "${{ steps.config.outputs.platforms }}" \
-            --tag         "${{ steps.config.outputs.image }}:${{ steps.config.outputs.version }}" \
+            --platform    "${{ steps.config.outputs.docker_platforms }}" \
+            --tag         "${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
             .
     outputs:
       date:                ${{ steps.config.outputs.date }}
@@ -153,9 +148,9 @@ jobs:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
           body: |
-            Core          **[${{ needs.buildx.outputs.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ steps.config.output.pihole_core_version }})**
-            FTLDNS        **[${{ needs.buildx.outputs.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{ steps.config.output.pihole_ftl_version }})**
-            Web interface **[${{ needs.buildx.outputs.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ steps.config.output.pihole_web_version }})**
+            Core          **[${{ needs.buildx.outputs.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ needs.buildx.outputs.pihole_core_version }})**
+            FTLDNS        **[${{ needs.buildx.outputs.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{      needs.buildx.outputs.pihole_ftl_version }})**
+            Web interface **[${{ needs.buildx.outputs.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ needs.buildx.outputs.pihole_web_version }})**
           draft: true
           prerelease: false
 
