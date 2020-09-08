@@ -129,8 +129,11 @@ jobs:
           path: /tmp/buildx-cache
           restore-keys: ${{ runner.os }}-buildx-
 
+      - name: inspect image
+        run: docker buildx imagetools inspect "$DOCKERHUB_USERNAME/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}"
+
       - name: docker hub login
-        if: success()
+        if: ${{ success() }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSwORD }}
@@ -138,7 +141,7 @@ jobs:
           echo "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
 
       - name: push docker image
-        if: success()
+        if: ${{ success() }}
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
@@ -156,7 +159,7 @@ jobs:
 
       - name: create release
         uses: actions/create-release@v1
-        if: success() && github.event_name == 'tag'
+        if: ${{ success() && github.event_name == "tag" }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
