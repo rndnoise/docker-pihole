@@ -123,7 +123,7 @@ jobs:
             --platform    "${{ needs.build.outputs.docker_platforms }}" \
             --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
             --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
-            --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}"
+            --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}" \
             .
 
     # TODO: This doesn't support Docker Hub personal access tokens or 2FA
