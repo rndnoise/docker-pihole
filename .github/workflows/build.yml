@@ -90,12 +90,12 @@ jobs:
             --cache-to    "type=local,dest=/tmp/buildx-cache" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
             --platform    "${{ steps.config.outputs.docker_platforms }}" \
-            --tag         "${DOCKERHUB_USERNAME}/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
+            --tag         "$DOCKERHUB_USERNAME/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
             .
 
       - name: cleanup
         run: |
-          rm -f ${HOME}/.docker/config.json
+          rm -f "$HOME/.docker/config.json"
 
     outputs:
       date:                ${{ steps.config.outputs.date }}
@@ -135,20 +135,7 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSwORD }}
         run: |
-          echo "${DOCKERHUB_PASSWORD}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
-
-      - name: build docker image
-        if: success()
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: |
-          docker buildx build \
-            --output      "type=image,push=false" \
-            --cache-to    "type=local,src=/tmp/buildx-cache" \
-            --cache-from  "type=local,src=/tmp/buildx-cache" \
-            --platform    "${{ needs.build.outputs.docker_platforms }}" \
-            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
-            .
+          echo "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
 
       - name: push docker image
         if: success()
@@ -159,19 +146,7 @@ jobs:
             --output      "type=image,push=true" \
             --cache-from  "type=local,src=/tmp/buildx-cache" \
             --platform    "${{ needs.build.outputs.docker_platforms }}" \
-            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
-            .
-
-      - name: push docker image
-        if: success()
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        run: |
-          docker buildx build \
-            --output      "type=image,push=true" \
-            --cache-from  "type=local,src=/tmp/buildx-cache" \
-            --platform    "${{ needs.build.outputs.docker_platforms }}" \
-            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            --tag         "$DOCKERHUB_USERNAME/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
             --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
             --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}" \
             --label       "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
@@ -196,4 +171,4 @@ jobs:
 
       - name: cleanup
         run: |
-          rm -f ${HOME}/.docker/config.json
+          rm -f "$HOME/.docker/config.json"
