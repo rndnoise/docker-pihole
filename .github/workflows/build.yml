@@ -10,6 +10,8 @@ on:
     tags:
       - v*
 
+# For GitHub-hosted runners, each job in a workflow runs in a fresh instance of
+# a virtual environment.
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,7 +26,7 @@ jobs:
           qemu-version: latest
           buildx-version: latest
 
-      - name: setup docker cache
+      - name: setup cache
         id: cache
         uses: actions/cache@v2
         with:
@@ -90,6 +92,11 @@ jobs:
             --platform    "${{ steps.config.outputs.docker_platforms }}" \
             --tag         "${DOCKERHUB_USERNAME}/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
             .
+
+      - name: cleanup
+        run: |
+          rm -f ${HOME}/.docker/config.json
+
     outputs:
       date:                ${{ steps.config.outputs.date }}
       gitsha:              ${{ steps.config.outputs.gitsha }}
@@ -104,6 +111,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - name: checkout repo
+        uses: actions/checkout@v2
+
+      - name: setup docker buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@v3
+        with:
+          qemu-version: latest
+          buildx-version: latest
+
+      - name: setup cache
+        id: cache
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          path: /tmp/buildx-cache
+          restore-keys: ${{ runner.os }}-buildx-
+
       - name: docker hub login
         if: success()
         env:
@@ -111,6 +136,19 @@ jobs:
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSwORD }}
         run: |
           echo "${DOCKERHUB_PASSWORD}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+
+      - name: build docker image
+        if: success()
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          docker buildx build \
+            --output      "type=image,push=false" \
+            --cache-to    "type=local,src=/tmp/buildx-cache" \
+            --cache-from  "type=local,src=/tmp/buildx-cache" \
+            --platform    "${{ needs.build.outputs.docker_platforms }}" \
+            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            .
 
       - name: push docker image
         if: success()
@@ -123,22 +161,23 @@ jobs:
             --platform    "${{ needs.build.outputs.docker_platforms }}" \
             --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
             .
-            #-label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
-            #-label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}" \
 
-    # TODO: This doesn't support Docker Hub personal access tokens or 2FA
-    # - name: dockerhub description
-    #   uses: peter-evans/dockerhub-description@v2.1.0
-    #   env:
-    #     README_FILEPATH: DOCKER.md
-    #     DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-    #     DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-    #     DOCKERHUB_REPOSITORY: ${{ secrets.DOCKERHUB_REPOSITORY }}
-
-      - name: configure release info
+      - name: push docker image
         if: success()
-        id: release
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
+          docker buildx build \
+            --output      "type=image,push=true" \
+            --cache-from  "type=local,src=/tmp/buildx-cache" \
+            --platform    "${{ needs.build.outputs.docker_platforms }}" \
+            --tag         "${DOCKERHUB_USERNAME}/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
+            --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}" \
+            --label       "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label       "org.opencontainers.image.version=${{ needs.build.outputs.version }}" \
+            --label       "org.opencontainers.image.title=${{ needs.build.outputs.docker_image }}" \
+            .
 
       - name: create release
         uses: actions/create-release@v1
