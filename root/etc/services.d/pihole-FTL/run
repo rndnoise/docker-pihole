@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+
+s6-echo "Starting pihole-FTL (no-daemon) as ${PIHOLE_DNS_USER}"
+s6-setuidgid ${PIHOLE_DNS_USER} pihole-FTL no-daemon >/dev/null 2>&1

@@ -1,0 +1,174 @@
+name: build
+
+on:
+  push:
+    branches:
+      - master
+      - features/*
+      - releases/*
+      - development
+    tags:
+      - v*
+
+# For GitHub-hosted runners, each job in a workflow runs in a fresh instance of
+# a virtual environment.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@2036a08e25fa78bbd946711a407b529a0a1204bf #v2.3.2
+
+      - name: setup docker buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@bb77f35f7a82f54fcda51000ea4e4467825014fd #v3.3.0
+        with:
+          qemu-version: latest
+          buildx-version: latest
+
+      - name: setup cache
+        id: cache
+        uses: actions/cache@5ca27f25cb3a0babe750cad7e4fddd3e55f29e9a #v2.1.1
+        with:
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          path: /tmp/buildx-cache
+          restore-keys: ${{ runner.os }}-buildx-
+
+      - name: configure build
+        id: config
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            # Tagged release
+            echo ::set-output name=version::${GITHUB_REF#refs/tags/}
+          elif [[ $GITHUB_REF == refs/heads/master ]]; then
+            # Master branch (next step is tag for release)
+            echo ::set-output name=version::latest
+          elif [[ $GITHUB_REF == refs/heads/releases/* ]]; then
+            # Release candidate branch (next step is merge into master)
+            echo ::set-output name=version::${GITHUB_REF#refs/heads/releases/}-rc
+          elif [[ $GITHUB_REF == refs/heads/development ]]; then
+            # Development branch (next step is fork or merge into release candidate branch)
+            echo ::set-output name=version::edge
+          elif [[ $GITHUB_REF == refs/heads/features/* ]]; then
+            # Feature branch (next step is to merge into development branch)
+            echo ::set-output name=version::edge-${GITHUB_REF#refs/heads/features/}
+          else
+            echo "\$GITHUB_REF ($GITHUB_REF) did not match supported patterns"
+            exit 1
+          fi
+
+          echo ::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          echo ::set-output name=gitsha::${GITHUB_SHA::8}
+
+          # Temporary workaround (don't build linux/arm/v7) https://github.com/moby/moby/issues/41017
+          echo ::set-output name=docker_platforms::linux/amd64,linux/arm/v6,linux/arm64
+          echo ::set-output name=docker_image::${GITHUB_REPO##*/docker-}
+
+          echo ::set-output name=pihole_core_version::$(grep "PIHOLE_CORE_VERSION=" Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_ftl_version::$( grep "PIHOLE_FTL_VERSION="  Dockerfile | head -1 | grep -o "v.*")
+          echo ::set-output name=pihole_web_version::$( grep "PIHOLE_WEB_VERSION="  Dockerfile | head -1 | grep -o "v.*")
+
+      - name: show configuration
+        run: |
+          echo date:                ${{ steps.config.outputs.date }}
+          echo gitsha:              ${{ steps.config.outputs.gitsha }}
+          echo version:             ${{ steps.config.outputs.version }}
+          echo docker_image:        ${{ steps.config.outputs.docker_image }}
+          echo docker_platforms:    ${{ steps.config.outputs.docker_platforms }}
+          echo pihole_ftl_version:  ${{ steps.config.outputs.pihole_ftl_version }}
+          echo pihole_web_version:  ${{ steps.config.outputs.pihole_web_version }}
+          echo pihole_core_version: ${{ steps.config.outputs.pihole_core_version }}
+
+      - name: build docker image
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          docker buildx build \
+            --output      "type=image,push=false" \
+            --cache-to    "type=local,dest=/tmp/buildx-cache" \
+            --cache-from  "type=local,src=/tmp/buildx-cache" \
+            --platform    "${{ steps.config.outputs.docker_platforms }}" \
+            --tag         "$DOCKERHUB_USERNAME/${{ steps.config.outputs.docker_image }}:${{ steps.config.outputs.version }}" \
+            .
+
+      - name: cleanup
+        run: |
+          rm -f "$HOME/.docker/config.json"
+
+    outputs:
+      date:                ${{ steps.config.outputs.date }}
+      gitsha:              ${{ steps.config.outputs.gitsha }}
+      version:             ${{ steps.config.outputs.version }}
+      docker_image:        ${{ steps.config.outputs.docker_image }}
+      docker_platforms:    ${{ steps.config.outputs.docker_platforms }}
+      pihole_ftl_version:  ${{ steps.config.outputs.pihole_ftl_version }}
+      pihole_web_version:  ${{ steps.config.outputs.pihole_web_version }}
+      pihole_core_version: ${{ steps.config.outputs.pihole_core_version }}
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@2036a08e25fa78bbd946711a407b529a0a1204bf #v2.3.2
+
+      - name: setup docker buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@bb77f35f7a82f54fcda51000ea4e4467825014fd #v3.3.0
+        with:
+          qemu-version: latest
+          buildx-version: latest
+
+      - name: setup cache
+        id: cache
+        uses: actions/cache@5ca27f25cb3a0babe750cad7e4fddd3e55f29e9a #v2.1.1
+        with:
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          path: /tmp/buildx-cache
+          restore-keys: ${{ runner.os }}-buildx-
+
+      - name: docker hub login
+        if: ${{ success() }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSwORD }}
+        run: |
+          echo "$DOCKERHUB_PASSWORD" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: push docker image
+        if: ${{ success() }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          docker buildx build \
+            --output      "type=image,push=true" \
+            --cache-from  "type=local,src=/tmp/buildx-cache" \
+            --platform    "${{ needs.build.outputs.docker_platforms }}" \
+            --tag         "$DOCKERHUB_USERNAME/${{ needs.build.outputs.docker_image }}:${{ needs.build.outputs.version }}" \
+            --label       "org.opencontainers.image.created=${{  needs.build.outputs.date }}" \
+            --label       "org.opencontainers.image.revision=${{ needs.build.outputs.gitsha }}" \
+            --label       "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label       "org.opencontainers.image.version=${{ needs.build.outputs.version }}" \
+            --label       "org.opencontainers.image.title=${{ needs.build.outputs.docker_image }}" \
+            .
+
+      - name: create release
+        uses: actions/create-release@1e92f6fc665e271a5435631ba00711fdd83d9d27 #v1.1.3
+        if: ${{ success() && github.event_name == 'tag' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Core          **[${{ needs.build.outputs.pihole_core_version }}](https://github.com/pi-hole/pi-hole/releases/tag/${{ needs.build.outputs.pihole_core_version }})**
+            FTLDNS        **[${{ needs.build.outputs.pihole_ftl_version }}](https://github.com/pi-hole/FTL/releases/tag/${{      needs.build.outputs.pihole_ftl_version }})**
+            Web interface **[${{ needs.build.outputs.pihole_web_version }}](https://github.com/pi-hole/AdminLTE/releases/tag/${{ needs.build.outputs.pihole_web_version }})**
+          draft: true
+          prerelease: false
+
+      - name: cleanup
+        run: |
+          rm -f "$HOME/.docker/config.json"

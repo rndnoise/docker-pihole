@@ -1,0 +1,19 @@
+PATH=/opt/pihole:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+#
+# ┌───────────── minute, 0 - 59
+# │    ┌───────────── hour, 0 - 23
+# │    │     ┌───────────── day of the month, 1 - 31
+# │    │     │     ┌───────────── month, 1 - 12
+# │    │     │     │     ┌───────────── day of the week, 0 - 6 (Sunday to Saturday;
+# │    │     │     │     │     ┌───────────── username
+# │    │     │     │     │     │
+# │    │     │     │     │     │
+# *    *     *     *     *     *     <command to execute>
+
+# Download blocklist updates once a week
+  45   3     *     *     6     root  pihole -g >/dev/null
+@reboot                        root  pihole -g >/dev/null
+
+# Flush the log daily at so it doesn't get out of control
+  15   0     *     *     *     root  pihole flush >/dev/null

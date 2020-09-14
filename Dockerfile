@@ -1,58 +1,47 @@
-ARG PIHOLE_BASE
-FROM $PIHOLE_BASE
+FROM debian:buster-slim
 
-ARG PIHOLE_ARCH
-ENV PIHOLE_ARCH "${PIHOLE_ARCH}"
-ARG S6_ARCH
-ARG S6_VERSION
-ENV S6OVERLAY_RELEASE "https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-${S6_ARCH}.tar.gz"
+# Build time environment
+ARG TARGETPLATFORM
+ARG S6_VERSION=v1.22.1.0
+ARG PIHOLE_CORE_VERSION=v5.1.2
+ARG PIHOLE_WEB_VERSION=v5.1.1
+ARG PIHOLE_FTL_VERSION=v5.2
+ARG DEBIAN_FRONTEND=noninteractive
+ARG PIHOLE_SKIP_OS_CHECK=true
 
-COPY install.sh /usr/local/bin/install.sh
-COPY VERSION /etc/docker-pi-hole-version
-ENV PIHOLE_INSTALL /root/ph_install.sh
+RUN apt-get update
+RUN apt-get install --no-install-recommends -y \
+      curl procps ca-certificates netcat-openbsd
 
-RUN bash -ex install.sh 2>&1 && \
-    rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
+# curl in armhf-buster's image has SSL issues. Running c_rehash fixes it.
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=923479
+RUN c_rehash
 
-ENTRYPOINT [ "/s6-init" ]
+COPY Dockerfile.sh /
+COPY root/         /
+RUN touch          /.dockerenv
 
-ADD s6/debian-root /
-COPY s6/service /usr/local/bin/service
+# Hard to track down issue: COPY uses the file permissions from the working dir,
+# which ought to be 0755... but when they're 0700, we see strange errors about
+# hostname lookups failing. Git only tracks the executable bit, not read/write.
+RUN chmod 755 /etc /usr /usr/bin /usr/bin/*
 
-# php config start passes special ENVs into
-ARG PHP_ENV_CONFIG
-ENV PHP_ENV_CONFIG "${PHP_ENV_CONFIG}"
-ARG PHP_ERROR_LOG
-ENV PHP_ERROR_LOG "${PHP_ERROR_LOG}"
-COPY ./start.sh /
-COPY ./bash_functions.sh /
+# Runtime container environment
+ENV S6_LOGGING=0                        \
+    S6_KEEP_ENV=1                       \
+    S6_BEHAVIOUR_IF_STAGE2_FAILS=2      \
+    PIHOLE_DNS_USER=pihole              \
+    PATH=/opt/pihole:${PATH}
 
-# IPv6 disable flag for networks/devices that do not support it
-ENV IPv6 True
+RUN /Dockerfile.sh && \
+    rm -rf /Dockerfile.sh /var/cache/apt/archives /var/lib/apt/lists/*
 
-EXPOSE 53 53/udp
-EXPOSE 67/udp
-EXPOSE 80
-EXPOSE 443
+EXPOSE  53/udp
+EXPOSE  53/tcp
+EXPOSE  80/tcp
+EXPOSE 443/tcp
 
-ENV S6_LOGGING 0
-ENV S6_KEEP_ENV 1
-ENV S6_BEHAVIOUR_IF_STAGE2_FAILS 2
-
-ENV ServerIP 0.0.0.0
-ENV FTL_CMD no-daemon
-ENV DNSMASQ_USER root
-
-ARG PIHOLE_VERSION
-ENV VERSION "${PIHOLE_VERSION}"
-ENV PATH /opt/pihole:${PATH}
-
-ARG NAME
-LABEL image="${NAME}:${PIHOLE_VERSION}_${PIHOLE_ARCH}"
-ARG MAINTAINER
-LABEL maintainer="${MAINTAINER}"
-LABEL url="https://www.github.com/pi-hole/docker-pi-hole"
-
-HEALTHCHECK CMD dig +norecurse +retry=0 @127.0.0.1 pi.hole || exit 1
-
-SHELL ["/bin/bash", "-c"]
+SHELL       ["/bin/bash", "-c"]
+WORKDIR     /
+ENTRYPOINT  [ "/s6-init" ]
+HEALTHCHECK CMD dig +norecurse +retry=0 @127.0.0.1 localhost
